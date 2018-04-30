@@ -57,25 +57,35 @@ void eos_schedule() {
     eos_tcb_t *current_task = eos_get_current_task();
 
     if (current_task != NULL) {  
-        addr_t prev_task_sp;
-        prev_task_sp = _os_save_context();
+        addr_t prev_task_sp = _os_save_context();
 
-        if (prev_task_sp != NULL) {
-            int32u_t priority = current_task->priority;
+        /* Woke up by the scheduler */
+        if (prev_task_sp == NULL) return;
 
-            /* Save current context to tcb */
-            current_task->sp = prev_task_sp;
+        int32u_t priority = current_task->priority;
 
-            /* Enqueue current task to the ready queue */
-            current_task->state = READY;
-            _os_add_node_tail(&_os_ready_queue[priority], current_task->node);
-            _os_set_ready(priority);
-        }
+        /* Save current context to tcb. */
+        current_task->sp = prev_task_sp;
+
+        /* Enqueue current task to the ready queue. */
+        current_task->state = READY;
+        _os_add_node_tail(&_os_ready_queue[priority], current_task->node);
+        _os_set_ready(priority);
     }
 
     int32u_t work_priority = _os_get_highest_priority();
-    eos_tcb_t *next_task = _os_ready_queue[work_priority]->ptr_data;
-    if (_os_remove_node(_os_ready_queue[work_priority], next_task->node) == NULL) return;
+    _os_node_t *next_task_node = _os_ready_queue[work_priority];
+
+    /* Nothing to schedule. */
+    if (next_task_node == NULL) return;
+
+    eos_tcb_t *next_task = next_task_node->ptr_data;
+
+    /* Load next executing task. */
+    _os_remove_node(&_os_ready_queue[work_priority], next_task_node);
+    if (_os_ready_queue[work_priority] == NULL) _os_unset_ready(work_priority);
+    next_task->state = RUNNING;
+    _os_current_task = next_task;
     
     /* Restore the next context. */
     _os_restore_context(next_task->sp);

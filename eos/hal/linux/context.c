@@ -47,13 +47,8 @@ addr_t _os_create_context(addr_t stack_base, size_t stack_size, void (*entry)(vo
     addr_t stack_bottom = (addr_t)(((int32u_t)stack_base) + stack_size);
     void **arg_param = ((void **)stack_bottom) - 1;
     addr_t *ret_addr = ((addr_t *)arg_param) - 1;
-    _os_context_t *ctx = ((_os_context_t *)ret_addr) - 1;
-
-    PRINT("stack_base   = 0x%x\n", stack_base);
-    PRINT("stack_size   = %u\n", stack_size);
-    PRINT("stack_bottom = 0x%x\n", stack_bottom);
-    PRINT("arg_param    = 0x%x\n", arg_param);
-    PRINT("ret_address  = 0x%x\n", ret_addr);
+    addr_t top = (addr_t)(((_os_context_t *)ret_addr) - 1);
+    _os_context_t *ctx = (_os_context_t *)top;
 
     /* Initialize the new stack */
     *arg_param = arg;
@@ -69,9 +64,7 @@ addr_t _os_create_context(addr_t stack_base, size_t stack_size, void (*entry)(vo
     ctx->eflags_reg = (int32u_t)NULL;
     ctx->eip_reg = (int32u_t)entry;
 
-    print_context(ctx);
-
-    return (addr_t)(ctx - 1) + 1;
+    return top;
 }
 
 /*
@@ -99,11 +92,12 @@ addr_t _os_save_context() {
     __asm__ __volatile__("\
         push $resume_eip;\
         push _eflags;\
+        mov $0, %%eax;\
         pusha;\
         mov %%esp, %%eax;\
-        push 0x4(%%esp);\
+        push 0x4(%%ebp);\
         push 0x0(%%ebp);\
         mov %%esp, %%ebp;\
-    resume_eip:":);
-    return NULL;
+    resume_eip:"
+        :);
 }
